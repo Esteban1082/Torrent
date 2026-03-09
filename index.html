@@ -642,6 +642,10 @@
 
   <!-- Panneau config Jackett (caché par défaut) -->
   <div class="jk-cfg" id="jk-cfg">
+    <div id="jk-https-warn" class="jk-status err" style="display:none;margin-bottom:10px">
+      ⚠️ <strong>Page HTTPS détectée (GitHub Pages)</strong> — Jackett (HTTP) sera bloqué par le navigateur.
+      Pour utiliser Jackett, ouvre ce fichier <strong>directement depuis ton PC</strong> (double-clic → <code>file://</code>).
+    </div>
     <div class="fg">
       <label class="fl">URL Jackett</label>
       <input class="finput" id="jk-url" type="url" autocapitalize="none" autocorrect="off" placeholder="http://localhost:9117" />
@@ -1365,10 +1369,19 @@ function toggleJkCfg() {
   if (!panel) return;
   var isOpen = panel.classList.contains('on');
   panel.classList.toggle('on', !isOpen);
-  if (!isOpen && jkConfig) {
-    var u = document.getElementById('jk-url'); if (u) u.value = jkConfig.url || '';
-    var k = document.getElementById('jk-key'); if (k) k.value = jkConfig.key || '';
+  if (!isOpen) {
+    if (jkConfig) {
+      var u = document.getElementById('jk-url'); if (u) u.value = jkConfig.url || '';
+      var k = document.getElementById('jk-key'); if (k) k.value = jkConfig.key || '';
+    }
+    // Avertissement HTTPS si besoin
+    var warn = document.getElementById('jk-https-warn');
+    if (warn) warn.style.display = location.protocol === 'https:' ? 'block' : 'none';
   }
+}
+
+function isMixedContent(targetUrl) {
+  return location.protocol === 'https:' && /^http:/i.test(targetUrl);
 }
 
 function testJk() {
@@ -1378,6 +1391,14 @@ function testJk() {
 
   var status = document.getElementById('jk-status');
   status.style.display = 'block';
+
+  if (isMixedContent(url)) {
+    status.className = 'jk-status err';
+    status.innerHTML = '⚠️ <strong>Mixed Content bloqué</strong> — Cette page est en HTTPS (GitHub Pages) mais Jackett est en HTTP. '
+      + 'Le navigateur bloque cette connexion. <strong>Ouvre le fichier HTML directement</strong> depuis ton PC (file://) pour utiliser Jackett.';
+    return;
+  }
+
   status.className = 'jk-status';
   status.textContent = 'Test en cours…';
 
@@ -1440,6 +1461,11 @@ function jkSearch(query) {
   body.innerHTML = '<div class="jk-loading"><div class="jk-spinner"></div>Recherche en cours…</div>';
   panel.classList.add('on');
   panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+
+  if (isMixedContent(jkConfig.url)) {
+    body.innerHTML = '<div class="jk-empty">⚠️ <strong>Mixed Content bloqué</strong> — Page HTTPS (GitHub) → Jackett HTTP impossible.<br>Ouvre le fichier HTML directement depuis ton PC pour utiliser Jackett.</div>';
+    return;
+  }
 
   var cat = jkCatFor(activePreset);
   var apiUrl = jkConfig.url + '/api/v2.0/indexers/all/results'
